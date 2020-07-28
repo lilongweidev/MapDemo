@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    tools:context=".MainActivity">
+
+    <com.baidu.mapapi.map.MapView
+        android:id="@+id/bmapView"
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:clickable="true" />
+
+    <ImageButton
+        android:visibility="gone"
+        android:id="@+id/ib_location"
+        android:layout_margin="8dp"
+        android:onClick="resetLocation"
+        android:layout_alignParentBottom="true"
+        android:background="@drawable/icon_location"
+        android:layout_width="40dp"
+        android:layout_height="40dp"/>
+
+</RelativeLayout>
