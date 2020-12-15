@@ -2,6 +2,9 @@ package com.llw.mapdemo;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import android.Manifest;
+import android.app.Activity;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ImageButton;
@@ -22,6 +25,7 @@ import com.baidu.mapapi.map.Marker;
 import com.baidu.mapapi.map.MarkerOptions;
 import com.baidu.mapapi.map.MyLocationData;
 import com.baidu.mapapi.model.LatLng;
+import com.tbruyelle.rxpermissions2.RxPermissions;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -44,10 +48,33 @@ public class MainActivity extends AppCompatActivity {
 
         initView();//视图初始化
 
-        initLocation();// 定位初始化
+        checkVersion();//检查版本
 
         mapOnClick();//地图点击
 
+    }
+
+    /**
+     * 检查版本
+     */
+    private void checkVersion() {
+        if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.M){
+            RxPermissions rxPermissions = new RxPermissions(this);
+            rxPermissions.request(Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.READ_PHONE_STATE,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                    .subscribe(granted -> {
+                        if (granted) {//申请成功
+                            //发起连续定位请求
+                            initLocation();// 定位初始化
+                        } else {//申请失败
+                            Toast.makeText(MainActivity.this,"权限未开启",Toast.LENGTH_SHORT).show();
+                        }
+                    });
+        }else {
+            initLocation();// 定位初始化
+        }
     }
 
     private void initView() {
@@ -55,7 +82,7 @@ public class MainActivity extends AppCompatActivity {
         mMapView = (MapView) findViewById(R.id.bmapView);
         //回到当前定位
         ibLocation = (ImageButton) findViewById(R.id.ib_location);
-        mMapView.showScaleControl(false);  // 设置比例尺是否可见（true 可见/false不可见）
+        mMapView.showScaleControl(true);  // 设置比例尺是否可见（true 可见/false不可见）
         //mMapView.showZoomControls(false);  // 设置缩放控件是否可见（true 可见/false不可见）
         mMapView.removeViewAt(1);// 删除百度地图Logo
 
@@ -158,6 +185,7 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onReceiveLocation(BDLocation location) {
+            Toast.makeText(MainActivity.this,location.getAddrStr(),Toast.LENGTH_SHORT).show();
             // MapView 销毁后不在处理新接收的位置
             if (location == null || mMapView == null) {
                 return;
