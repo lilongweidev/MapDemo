@@ -1,15 +1,18 @@
 package com.llw.mapdemo;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.Manifest;
-import android.app.Activity;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ImageButton;
 import android.widget.Toast;
 
+import com.baidu.location.BDAbstractLocationListener;
 import com.baidu.location.BDLocation;
 import com.baidu.location.BDLocationListener;
 import com.baidu.location.LocationClient;
@@ -25,13 +28,10 @@ import com.baidu.mapapi.map.Marker;
 import com.baidu.mapapi.map.MarkerOptions;
 import com.baidu.mapapi.map.MyLocationData;
 import com.baidu.mapapi.model.LatLng;
-import com.tbruyelle.rxpermissions2.RxPermissions;
 
 public class MainActivity extends AppCompatActivity {
 
-
     private MapView mMapView;
-
     private LocationClient mLocClient;
     private BaiduMap mBaiduMap;
 
@@ -41,8 +41,30 @@ public class MainActivity extends AppCompatActivity {
     private ImageButton ibLocation;//重置定位按钮
     private Marker marker;//标点也可以说是覆盖物
 
+    //需要请求的动态权限
+    private final String[] permissionArray = new String[]{
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.READ_PHONE_STATE,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE};
+    //动态请求权限
+    private ActivityResultLauncher<String[]> requestPermissions;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        //请求定位，registerForActivityResult的注册方式需要在Activity初始化之前进行，否则会报错。
+        requestPermissions = registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), result -> {
+            boolean coarseLocation = Boolean.TRUE.equals(result.get(Manifest.permission.ACCESS_COARSE_LOCATION));
+            boolean fineLocation = Boolean.TRUE.equals(result.get(Manifest.permission.ACCESS_FINE_LOCATION));
+            boolean readPhoneState = Boolean.TRUE.equals(result.get(Manifest.permission.READ_PHONE_STATE));
+            boolean writeStorage = Boolean.TRUE.equals(result.get(Manifest.permission.WRITE_EXTERNAL_STORAGE));
+            if (coarseLocation && fineLocation && readPhoneState && writeStorage) {
+                //所有权限都已经成功获取
+                initLocation();// 定位初始化
+            } else {
+                Toast.makeText(MainActivity.this, "有权限未通过", Toast.LENGTH_SHORT).show();
+            }
+        });
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
@@ -51,30 +73,25 @@ public class MainActivity extends AppCompatActivity {
         checkVersion();//检查版本
 
         mapOnClick();//地图点击
-
     }
 
     /**
      * 检查版本
      */
     private void checkVersion() {
-        if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.M){
-            RxPermissions rxPermissions = new RxPermissions(this);
-            rxPermissions.request(Manifest.permission.ACCESS_COARSE_LOCATION,
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.READ_PHONE_STATE,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                    .subscribe(granted -> {
-                        if (granted) {//申请成功
-                            //发起连续定位请求
-                            initLocation();// 定位初始化
-                        } else {//申请失败
-                            Toast.makeText(MainActivity.this,"权限未开启",Toast.LENGTH_SHORT).show();
-                        }
-                    });
-        }else {
+        //Android6.0以下不需要动态请求权限，直接初始化
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             initLocation();// 定位初始化
+            return;
         }
+        //Android6.0及以上需要动态请求权限，所以需要检查是否已经请求了权限。
+        boolean result = false;
+        //遍历权限数组，有一个没有通过则表示需要请求权限，这里还能再细分每一个请求权限。
+        for (String permission : permissionArray) {
+            result = checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
+        }
+        if (result) initLocation();
+        else requestPermissions.launch(permissionArray);
     }
 
     private void initView() {
@@ -143,28 +160,34 @@ public class MainActivity extends AppCompatActivity {
      * 定位初始化
      */
     public void initLocation() {
-
+        //添加隐私合规政策
+        LocationClient.setAgreePrivacy(true);
         // 开启定位图层
         mBaiduMap.setMyLocationEnabled(true);
         // 定位初始化
-        mLocClient = new LocationClient(this);
-        MyLocationListener myListener = new MyLocationListener();
-        mLocClient.registerLocationListener(myListener);
-        LocationClientOption option = new LocationClientOption();
+        if (mLocClient == null) {
+            try {
+                mLocClient = new LocationClient(this);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
 
-        option.setOpenGps(true);// 打开gps
-        option.setLocationMode(LocationClientOption.LocationMode.Hight_Accuracy);// 设置高精度定位
-        option.setCoorType("bd09ll");//可选，默认gcj02，设置返回的定位结果坐标系
-        option.setScanSpan(0);//可选，默认0，即仅定位一次，设置发起定位请求的间隔需要大于等于1000ms才是有效的
-        option.setIsNeedAddress(true);//可选，设置是否需要地址信息，默认不需要
-        option.setOpenGps(true);//可选，默认false,设置是否使用gps
-        option.setIsNeedLocationDescribe(true);//可选，默认false，设置是否需要位置语义化结果，可以在BDLocation.getLocationDescribe里得到，结果类似于“在北京天安门附近”
-        option.setIsNeedLocationPoiList(true);//可选，默认false，设置是否需要POI结果，可以在BDLocation.getPoiList里得到
-        option.setIgnoreKillProcess(false);//可选，默认false，定位SDK内部是一个SERVICE，并放到了独立进程，设置是否在stop的时候杀死这个进程，默认杀死
-        option.SetIgnoreCacheException(false);//可选，默认false，设置是否收集CRASH信息，默认收集
-        option.setEnableSimulateGps(false);//可选，默认false，设置是否需要过滤gps仿真结果，默认需要
-        mLocClient.setLocOption(option);
-        mLocClient.start();//开始定位
+        if (mLocClient != null) {
+            MyLocationListener myListener = new MyLocationListener();
+            mLocClient.registerLocationListener(myListener);
+            LocationClientOption option = new LocationClientOption();
+            option.setLocationMode(LocationClientOption.LocationMode.Hight_Accuracy);// 设置高精度定位
+            option.setCoorType("bd09ll");//可选，默认gcj02，设置返回的定位结果坐标系
+            option.setScanSpan(0);//可选，默认0，即仅定位一次，设置发起定位请求的间隔需要大于等于1000ms才是有效的
+            option.setIsNeedAddress(true);//可选，设置是否需要地址信息，默认不需要
+            option.setIsNeedLocationDescribe(true);//可选，默认false，设置是否需要位置语义化结果，可以在BDLocation.getLocationDescribe里得到，结果类似于“在北京天安门附近”
+            option.setIsNeedLocationPoiList(true);//可选，默认false，设置是否需要POI结果，可以在BDLocation.getPoiList里得到
+            option.setIgnoreKillProcess(false);//可选，默认false，定位SDK内部是一个SERVICE，并放到了独立进程，设置是否在stop的时候杀死这个进程，默认杀死
+            option.SetIgnoreCacheException(false);//可选，默认false，设置是否收集CRASH信息，默认收集
+            mLocClient.setLocOption(option);
+            mLocClient.start();//开始定位
+        }
     }
 
     /**
@@ -179,15 +202,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 定位SDK监听函数
+     * 定位SDK监听函数 这里是实现BDAbstractLocationListener，之前的版本是BDLocationListener
      */
-    public class MyLocationListener implements BDLocationListener {
-
+    public class MyLocationListener extends BDAbstractLocationListener {
         @Override
-        public void onReceiveLocation(BDLocation location) {
-            Toast.makeText(MainActivity.this,location.getAddrStr(),Toast.LENGTH_SHORT).show();
+        public void onReceiveLocation(BDLocation location){
+            Toast.makeText(MainActivity.this, location.getAddrStr(), Toast.LENGTH_SHORT).show();
             // MapView 销毁后不在处理新接收的位置
-            if (location == null || mMapView == null) {
+            if (mMapView == null) {
                 return;
             }
             double resultLatitude;
@@ -215,9 +237,7 @@ public class MainActivity extends AppCompatActivity {
             MapStatus.Builder builder = new MapStatus.Builder();
             builder.target(latLng).zoom(20.0f);
             mBaiduMap.animateMapStatus(MapStatusUpdateFactory.newMapStatus(builder.build()));
-
         }
-
     }
 
     @Override

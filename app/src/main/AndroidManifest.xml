@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.llw.mapdemo">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--以下权限与application标签是平级的-->
     <!-- 这个权限用于进行网络定位-->
@@ -40,7 +39,8 @@
             android:enabled="true"
             android:process=":remote" />
 
-        <activity android:name=".MainActivity">
+        <activity android:name=".MainActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
